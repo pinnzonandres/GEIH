@@ -2,12 +2,10 @@
 library(FNN)
 library(modeest)
 library(dplyr)
+library(parallel)
 
 # Código Fuente con el método de generación de muestras de FSDS
 source("C:\\Users\\andre\\OneDrive\\Escritorio\\Proyecto de Grado\\notebooks\\R\\FSDS.R")
-
-
-
 
 
 # Función para encontrar los k vecinos más cercanos según la métrica dada por SMOTE.ENC
@@ -75,7 +73,7 @@ SMOTE.ENC.KNN <- function(df, target, minority.value, vars.numeric, scaled = FAL
 }
 
 
-SyntheticData <- function(df, vars.numeric, target, minority.value, minority.less, muestra, knn, str_weight_name, seed){
+SyntheticData <- function(df, vars.numeric, target, minority.value, minority.less, muestra, knn, str_weight_name, seed, cl){
   # Plantación de Semilla
   set.seed(seed)
 
@@ -84,24 +82,30 @@ SyntheticData <- function(df, vars.numeric, target, minority.value, minority.les
   vars.categoric <- names(df)[!names(df) %in% vars.numeric]
   vars.categoric <- vars.categoric[vars.categoric != target]
 
-  a = sapply(1:minority.less, function(j){
-    id_muestra = muestra[j,'indice']
-    k_nn = knn[id_muestra,]
-    nn <- sample(k_nn,1)
-    numeric.values = sapply(vars.numeric, function(var){
-      diff = df[[var]][nn] - df[[var]][id_muestra]
+  # Cargar la biblioteca `modeest` en los nodos
+  clusterEvalQ(cl, library(modeest))
+
+  # Exportar la función `mfv` a los nodos
+  clusterExport(cl, "mfv")
+
+  a <- parSapply(cl, 1:minority.less, function(j) {
+    id_muestra <- muestra[j, "indice"]
+    k_nn <- knn[id_muestra, ]
+    nn <- sample(k_nn, 1)
+    numeric.values <- sapply(vars.numeric, function(var){
+      diff <- df[[var]][nn] - df[[var]][id_muestra]
       gap <- runif(1)
       return(df[[var]][id_muestra] + gap*diff)
     })
-    names(numeric.values) = vars.numeric
+    names(numeric.values) <- vars.numeric
   
-    categoric.values = sapply(vars.categoric, function(var){
-      value = as.character(mfv(df[[var]][k_nn])[1])
+    categoric.values <- sapply(vars.categoric, function(var) {
+      value <- as.character(mfv(df[[var]][k_nn])[1])
       return(value)
     })
-    names(categoric.values) = vars.categoric
+    names(categoric.values) <- vars.categoric
   
-    synthetic = c(numeric.values, categoric.values)
+    synthetic <- c(numeric.values, categoric.values)
     return(synthetic)
   })
   
@@ -111,7 +115,7 @@ SyntheticData <- function(df, vars.numeric, target, minority.value, minority.les
   return(result)
 }
 
-SMOTE.ENC.FSDS <- function(df, target, minority.value, str_weight_name, k, vars.numeric, seed){
+SMOTE.ENC.FSDS <- function(df, target, minority.value, str_weight_name, k, vars.numeric, seed) {
   # Plantación de Semilla
   set.seed(seed)
   vars.numeric <- vars.numeric[vars.numeric != str_weight_name]
@@ -133,11 +137,17 @@ SMOTE.ENC.FSDS <- function(df, target, minority.value, str_weight_name, k, vars.
   
   factor.expansion <- df[['Adjusted_Weight']]
   
+
+  # Ajuste de Espacio de Trabajo para el procesamiento en paralelo
+  n_cores <- detectCores()
+  cl <- makeCluster(n_cores)
+
   # Generación de Muestra
   print("Making Muestra")
-  D_m = FSDS(minority.df, factor.expansion, N, m, n, seed)
+  D_m <- FSDS(minority.df, factor.expansion, N, m, n, seed, cl)
+
   
-  muestra = D_m[[1]][sample(1:n, minority.less),]
+  muestra <- D_m[[1]][sample(1:n, minority.less), ]
   rownames(muestra) <- NULL
   
   # Detección de K vecinos
@@ -147,7 +157,10 @@ SMOTE.ENC.FSDS <- function(df, target, minority.value, str_weight_name, k, vars.
   
   # Generación Muestra Sintética
   print("Generando Synthetic")
-  Synthetic = SyntheticData(df, vars.numeric, target, minority.value, minority.less, muestra, knn, 'Adjusted_Weight', 3)
+  Synthetic = SyntheticData(df, vars.numeric, target, minority.value, minority.less, muestra, knn, 'Adjusted_Weight', seed, cl)
+  
+  # Se detiene el trabajo en paralelo
+  stopCluster(cl)
   
   
   # Concatenación de Resultados
