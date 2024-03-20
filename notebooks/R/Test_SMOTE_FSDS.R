@@ -14,7 +14,7 @@ sum(sample.df$FACTOR_EXPANSION)
 # Valores Básicos
 target = "ACTIVIDAD_OCUPADA_ULTIMA_SEMANA"
 minority.value = 0
-k = 5
+k = 5 
 seed = 3
 
 muestra <- SMOTE.ENC.FSDS(sample.df, target, minority.value, 'FACTOR_EXPANSION', k, vars.numeric, seed)
@@ -22,21 +22,8 @@ muestra <- SMOTE.ENC.FSDS(sample.df, target, minority.value, 'FACTOR_EXPANSION',
 table(muestra$ACTIVIDAD_OCUPADA_ULTIMA_SEMANA)
 sum(muestra$Adjusted_Weight)
 
-
 write.csv(muestra, file = "C:\\Users\\andre\\OneDrive\\Escritorio\\Proyecto de Grado\\result\\db_agrupado\\Syntetic_Enero.csv",row.names = FALSE)
 write.csv(sample.df, file = "C:\\Users\\andre\\OneDrive\\Escritorio\\Proyecto de Grado\\result\\db_agrupado\\Sample_Enero.csv", row.names = FALSE)
 
-
-adjusted_weight = unlist(lapply(1:nrow(muestra), function(i) {
-  if (i<501){
-    return(muestra$Adjusted_Weight[i])
-  } else {
-    return(1/muestra$Adjusted_Weight[i])
-  }
-}))
-
-muestra$Adjusted_Weight = adjusted_weight
-
-sum(adjusted_weight)
 
 
