@@ -132,12 +132,7 @@ SMOTE.ENC.FSDS <- function(df, target, minority.value, str_weight_name, k, vars.
   N = round(sum(df[[str_weight_name]]),0)
   
   # Ajuste de Pesos
-  ratio.ajuste = S/n
-  df[['Adjusted_Weight']] <- df[[str_weight_name]]*ratio.ajuste
-  
-  factor.expansion <- df[['Adjusted_Weight']]
-  
-
+  factor.expansion <- df[['FACTOR_EXPANSION']]
   # Ajuste de Espacio de Trabajo para el procesamiento en paralelo
   n_cores <- detectCores()
   cl <- makeCluster(n_cores)
@@ -157,11 +152,11 @@ SMOTE.ENC.FSDS <- function(df, target, minority.value, str_weight_name, k, vars.
   
   # Generación Muestra Sintética
   print("Generando Synthetic")
-  Synthetic = SyntheticData(df, vars.numeric, target, minority.value, minority.less, muestra, knn, 'Adjusted_Weight', seed, cl)
+  to.sint <- subset(df, select = -FACTOR_EXPANSION)
+  Synthetic = SyntheticData(df, vars.numeric, target, minority.value, minority.less, muestra, knn, 'FACTOR_EXPANSION', seed, cl)
   
   # Se detiene el trabajo en paralelo
   stopCluster(cl)
-  
   
   # Concatenación de Resultados
   resampled_data = rbind(df, Synthetic)
