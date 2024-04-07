@@ -4,12 +4,8 @@ library(modeest)
 library(dplyr)
 library(parallel)
 
-# Código Fuente con el método de generación de muestras de FSDS
-source("C:\\Users\\andre\\OneDrive\\Escritorio\\Proyecto de Grado\\notebooks\\R\\FSDS.R")
-
-
-# Función para encontrar los k vecinos más cercanos según la métrica dada por SMOTE.ENC
-SMOTE.ENC.KNN <- function(df, target, minority.value, vars.numeric, scaled = FALSE,  k, seed){
+# Función para encontrar los k vecinos más cercanos
+get_nn_neighbors <- function(df, target, minority.value, vars.numeric, scaled = FALSE,  k, seed){
   set.seed(seed)
 
   # Detección de las variables categóricas según la lista numérica
@@ -22,23 +18,23 @@ SMOTE.ENC.KNN <- function(df, target, minority.value, vars.numeric, scaled = FAL
   }
 
   # Mutación de los conjuntos para asegurar que las variables sean factores y valores numéricos
-  df = df %>% mutate(across(all_of(vars.categoric), factor))
+  df <- df %>% mutate(across(all_of(vars.categoric), factor))
   #df = df %>% mutate(across(all_of(vars.numeric), numeric))
 
 
   # Ajuste del conjunto de la clase minoritaría
-  minority.df = df[df[[target]] == minority.value, ]
+  minority.df <- df[df[[target]] == minority.value, ]
 
   # Creación de conjuntos Codificados para las variables categóricas
-  encoded.categoric = as.data.frame(sapply(df[vars.categoric], as.numeric))
-  encoded.minority = encoded.categoric[as.integer(rownames(minority.df)),]
+  encoded.categoric <- as.data.frame(sapply(df[vars.categoric], as.numeric))
+  encoded.minority <- encoded.categoric[as.integer(rownames(minority.df)),]
 
   # Variables Necesarias para el cálculo de la distancia para SMOTE ENC
-  t = nrow(minority.df)
-  s = nrow(df)
-  ir = t/s
-  c = length(vars.numeric)
-  m = ifelse(c>0, median(sapply(minority.df[vars.numeric], sd)), 1)
+  t <- nrow(minority.df)
+  s <- nrow(df)
+  ir <- t/s
+  c <- length(vars.numeric)
+  m <- ifelse(c>0, median(sapply(minority.df[vars.numeric], sd)), 1)
 
   # Cálculo del Valor Asociado a cada nivel de cada variable categórica según SMOTE ENC
   l_values <- lapply(vars.categoric, function(var){
@@ -63,22 +59,21 @@ SMOTE.ENC.KNN <- function(df, target, minority.value, vars.numeric, scaled = FAL
 
   # Concatenación del resultado de las variables categóricas con las variable numéricas
   df_encoded <- cbind(df[vars.numeric], encoded.categoric_updated)
-  df_encoded = data.frame(df_encoded) 
+  df_encoded <- data.frame(df_encoded) 
   df_encoded_numeric <- mutate_all(df_encoded, as.numeric)
 
   # Detección de los k vecinos más cercanos
-  knn = get.knn(df_encoded_numeric, k)$nn.index
+  knn <- get.knn(df_encoded_numeric, k)$nn.index
 
   return(knn)
 }
 
-
-SyntheticData <- function(df, vars.numeric, target, minority.value, minority.less, muestra, knn, str_weight_name, seed, cl){
+# Función para hacer las muestras sintéticas de forma paralela
+make_samples_parallel <- function(df, vars.numeric, target, minority.value, muestra, knn, seed, cl){
   # Plantación de Semilla
   set.seed(seed)
 
   # Detección de variables categóricas
-
   vars.categoric <- names(df)[!names(df) %in% vars.numeric]
   vars.categoric <- vars.categoric[vars.categoric != target]
 
@@ -88,14 +83,14 @@ SyntheticData <- function(df, vars.numeric, target, minority.value, minority.les
   # Exportar la función `mfv` a los nodos
   clusterExport(cl, "mfv")
 
-  a <- parSapply(cl, 1:minority.less, function(j) {
-    id_muestra <- muestra[j, "indice"]
+  a <- parSapply(cl, muestra, function(id_muestra) {
     k_nn <- knn[id_muestra, ]
     nn <- sample(k_nn, 1)
     numeric.values <- sapply(vars.numeric, function(var){
       diff <- df[[var]][nn] - df[[var]][id_muestra]
       gap <- runif(1)
-      return(df[[var]][id_muestra] + gap*diff)
+      value <- as.numeric(df[[var]][id_muestra] + gap*diff)
+      return(value)
     })
     names(numeric.values) <- vars.numeric
   
@@ -109,57 +104,160 @@ SyntheticData <- function(df, vars.numeric, target, minority.value, minority.les
     return(synthetic)
   })
   
-  result = data.frame(t(a))
-  result[[str_weight_name]] = muestra[, 'weight']
+  result <- data.frame(t(a))
   result[[target]] = minority.value
   return(result)
 }
 
-SMOTE.ENC.FSDS <- function(df, target, minority.value, str_weight_name, k, vars.numeric, seed) {
+# Función para hacer muestras sintéticas de forma normal
+make_samples_no_parallel <- function(df, vars.numeric, target, minority.value, muestra, knn, seed){
   # Plantación de Semilla
   set.seed(seed)
-  vars.numeric <- vars.numeric[vars.numeric != str_weight_name]
-  
-  # Detección del conjunto minoritario
-  minority.df = df[df[[target]] == minority.value, ]
-  
-  # Definición de valores necesarios
-  S = nrow(df)
-  minority.less = S - 2*nrow(minority.df)
-  
-  m = 1
-  n = S + minority.less
-  N = round(sum(df[[str_weight_name]]),0)
-  
-  # Ajuste de Pesos
-  factor.expansion <- df[['FACTOR_EXPANSION']]
-  # Ajuste de Espacio de Trabajo para el procesamiento en paralelo
-  n_cores <- detectCores()
-  cl <- makeCluster(n_cores)
 
-  # Generación de Muestra
-  print("Making Muestra")
-  D_m <- FSDS(minority.df, factor.expansion, N, m, n, seed, cl)
+  # Detección de variables categóricas
+  vars.categoric <- names(df)[!names(df) %in% vars.numeric]
+  vars.categoric <- vars.categoric[vars.categoric != target]
 
+  a <- sapply(muestra, function(id_muestra) {
+    k_nn <- knn[id_muestra, ]
+    nn <- sample(k_nn, 1)
+    numeric.values <- sapply(vars.numeric, function(var){
+      diff <- df[[var]][nn] - df[[var]][id_muestra]
+      gap <- runif(1)
+      value <- as.numeric(df[[var]][id_muestra] + gap*diff)
+      return(value)
+    })
+    names(numeric.values) <- vars.numeric
   
-  muestra <- D_m[[1]][sample(1:n, minority.less), ]
-  rownames(muestra) <- NULL
+    categoric.values <- sapply(vars.categoric, function(var) {
+      value <- as.character(mfv(df[[var]][k_nn])[1])
+      return(value)
+    })
+    names(categoric.values) <- vars.categoric
   
-  # Detección de K vecinos
-  print("Hallando KNN")
-  subset.df = subset(df, select = colnames(df)[colnames(df) != str_weight_name])
-  knn = SMOTE.ENC.KNN(subset.df, target, minority.value, vars.numeric, FALSE, k, seed)
+    synthetic <- c(numeric.values, categoric.values)
+    return(synthetic)
+  })
   
-  # Generación Muestra Sintética
-  print("Generando Synthetic")
-  to.sint <- subset(df, select = -FACTOR_EXPANSION)
-  Synthetic = SyntheticData(df, vars.numeric, target, minority.value, minority.less, muestra, knn, 'FACTOR_EXPANSION', seed, cl)
-  
-  # Se detiene el trabajo en paralelo
-  stopCluster(cl)
-  
-  # Concatenación de Resultados
-  resampled_data = rbind(df, Synthetic)
-  
-  return(resampled_data)
+  result <- data.frame(t(a))
+  result[[target]] = minority.value
+  return(result)
+}
+
+# Funcion SMOTE ENC
+SMOTE_ENC <- function(df, target, minority.value, vars.numeric, k, parallel = FALSE, seed){
+    
+    ## Ajuste de los K vecinos más cercanos
+    knn <- get_nn_neighbors(df, target, minority.value, vars.numeric, scaled = TRUE, k, seed)
+
+    ## Establecer la muestra
+    minor.df <- df[df[[target]] == minority.value, ]
+    t <- nrow(minor.df)
+    s <- nrow(df)
+
+    N <- s - 2*t
+
+    # Lista de indices de la clase minoritaría sobre la cuál se harán las muestras sintéticas
+    index.minority <- as.integer(rownames(minor.df))
+    
+    if (N <= t){
+        new_index <- sample(index.minority, N)
+    } else {
+        repeticiones <- floor(N/t)
+        new_index <- rep(index.minority, repeticiones)
+        restantes <- N - (repeticiones*t)
+        new_index <- c(new_index, sample(index.minority, restantes))
+    }
+    # Ajuste de Espacio de Trabajo para el procesamiento en paralelo
+    if (parallel){
+      n_cores <- detectCores()
+      cl <- makeCluster(n_cores)
+      
+      Synthetic <- make_samples_parallel(df, vars.numeric, target, minority.value, new_index, knn, seed, cl)
+      stopCluster(cl)
+      } else {
+        Synthetic <- make_samples_no_parallel(df, vars.numeric, target, minority.value, new_index, knn, seed)
+      }
+
+    return(Synthetic)
+}
+
+ADASYN.ENC <- function(df, target, minority.value, vars.numeric, k, parallel = FALSE, seed){
+    
+    ## Ajuste de los K vecinos más cercanos
+    knn <- get_nn_neighbors(df, target, minority.value, vars.numeric, scaled = FALSE, k, seed)
+
+    ## Establecer la muestra
+    minor.df <- df[df[[target]] == minority.value, ]
+    mayor.df <- df[df[[target]]!= minority.value, ]
+
+    G <- nrow(mayor.df) - nrow(minor.df)
+
+    r_i <- sapply(as.numeric(rownames(minor.df)), function(i){
+    value <- knn[i,] %in% as.numeric(rownames(mayor.df))
+    r <- length(knn[i,value])/k
+    return(r)
+    })
+
+    r_i_n <- r_i/sum(r_i)
+
+    g_i <- data.frame(index = as.numeric(rownames(minor.df)), g = round(r_i_n*G,0))
+
+    new_index <- unlist(lapply(1:nrow(g_i), function(i){
+        index <- rep(g_i[i,'index'], g_i[i,'g'])
+        return(index)
+        }))
+
+    # Ajuste de Espacio de Trabajo para el procesamiento en paralelo
+    if (parallel){
+      n_cores <- detectCores()
+      cl <- makeCluster(n_cores)
+      Synthetic <- make_samples_parallel(df, vars.numeric, target, minority.value, new_index, knn, seed, cl)
+      
+      stopCluster(cl)
+      } else{
+        Synthetic <- make_samples_no_parallel(df, vars.numeric, target, minority.value, new_index, knn, seed)
+      }
+
+      Synthetic <- Synthetic[sample(1:nrow(Synthetic), G), ]
+
+    return(Synthetic)
+}
+
+
+WSMOTE.ENC  <- function(df, factor_expansion, target, minority.value, vars.numeric, k, parallel = FALSE,  seed){
+    
+    ## Ajuste de los K vecinos más cercanos
+    knn <- get_nn_neighbors(df, target, minority.value, vars.numeric, scaled = TRUE, k, seed)
+
+    ## Establecer la muestra
+    minor.df <- df[df[[target]] == minority.value, ]
+    mayor.df <- df[df[[target]]!= minority.value, ]
+
+    G <- nrow(mayor.df) - nrow(minor.df)
+
+    factor.expansion <- factor_expansion[as.numeric(rownames(minor.df))]
+    r_i_n <- factor.expansion/sum(factor.expansion)
+
+    g_i <- data.frame(index = as.numeric(rownames(minor.df)), g = round(r_i_n*G,0))
+
+    new_index <- unlist(lapply(1:nrow(g_i), function(i){
+        index <- rep(g_i[i,'index'], g_i[i,'g'])
+        return(index)
+        }))
+
+    # Ajuste de Espacio de Trabajo para el procesamiento en paralelo
+    if (parallel){
+      n_cores <- detectCores()
+      cl <- makeCluster(n_cores)
+      Synthetic <- make_samples_parallel(df, vars.numeric, target, minority.value, new_index, knn, seed, cl)
+      
+      stopCluster(cl)
+      } else{
+        Synthetic <- make_samples_no_parallel(df, vars.numeric, target, minority.value, new_index, knn, seed)
+      }
+
+      Synthetic <- Synthetic[sample(1:nrow(Synthetic), G), ]
+
+    return(Synthetic)
 }

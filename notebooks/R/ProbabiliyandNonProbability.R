@@ -188,5 +188,8 @@ train.swsmoteenc$FACTOR_EXPANSION <- w_i
 full.swsmoteenc <- rbind(train.swsmoteenc, synt.swsmoteenc)
 
 # Evaluación del Modelo
+
 swsmoteenc.glm <- survey_model(full.swsmoteenc, test, "FACTOR_EXPANSION")
 
+sum(train$FACTOR_EXPANSION)
+sum(full.smote$FACTOR_EXPANSION)

@@ -148,10 +148,10 @@ SMOTE_ENC <- function(df, target, minority.value, vars.numeric, k, seed){
 
 
 ### Función ADASYN
-ADASYN <- function(df, target, minority.value, vars.numeric, k, seed){
+ADASYN.ENC <- function(df, target, minority.value, vars.numeric, k, seed){
     
     ## Ajuste de los K vecinos más cercanos
-    knn <- get_nn_neighbors(df, target, minority.value, vars.numeric, scaled = TRUE, k, seed)
+    knn <- get_nn_neighbors(df, target, minority.value, vars.numeric, scaled = FALSE, k, seed)
 
     ## Establecer la muestra
     minor.df <- df[df[[target]] == minority.value, ]
@@ -188,7 +188,7 @@ ADASYN <- function(df, target, minority.value, vars.numeric, k, seed){
 
 
 # FUNCIÓN SWSMOTE
-SWSMOTEENC <- function(df, factor_expansion, target, minority.value, vars.numeric, k, seed){
+WSMOTE.ENC.SW <- function(df, factor_expansion, target, minority.value, vars.numeric, k, seed){
     
     ## Ajuste de los K vecinos más cercanos
     knn <- get_nn_neighbors(df, target, minority.value, vars.numeric, scaled = TRUE, k, seed)
