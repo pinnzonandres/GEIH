@@ -219,8 +219,6 @@ ADASYN.ENC <- function(df, target, minority.value, vars.numeric, k, parallel = F
         Synthetic <- make_samples_no_parallel(df, vars.numeric, target, minority.value, new_index, knn, seed)
       }
 
-      Synthetic <- Synthetic[sample(1:nrow(Synthetic), G), ]
-
     return(Synthetic)
 }
 
@@ -256,8 +254,6 @@ WSMOTE.ENC  <- function(df, factor_expansion, target, minority.value, vars.numer
       } else{
         Synthetic <- make_samples_no_parallel(df, vars.numeric, target, minority.value, new_index, knn, seed)
       }
-
-      Synthetic <- Synthetic[sample(1:nrow(Synthetic), G), ]
 
     return(Synthetic)
 }

@@ -5,6 +5,7 @@
 
 library(survey)
 library(dplyr)
+library(ggplot2)
 
 source("C:\\Users\\andre\\OneDrive\\Escritorio\\Proyecto de Grado\\notebooks\\R\\oversampling.R")
 source("C:\\Users\\andre\\OneDrive\\Escritorio\\Proyecto de Grado\\notebooks\\R\\Extras.R")
@@ -193,3 +194,40 @@ swsmoteenc.glm <- survey_model(full.swsmoteenc, test, "FACTOR_EXPANSION")
 
 sum(train$FACTOR_EXPANSION)
 sum(full.smote$FACTOR_EXPANSION)
+
+
+design.full = svydesign(ids=~1, data = data, weights = ~FACTOR_EXPANSION)
+
+svytable(~ACTIVIDAD_OCUPADA_ULTIMA_SEMANA +SEXO, design = design.full)
+
+svytable(~ACTIVIDAD_OCUPADA_ULTIMA_SEMANA +SEXO, design = design.adasyn)
+
+svyciprop(~ACTIVIDAD_OCUPADA_ULTIMA_SEMANA, design = design.adasyn)
+svyciprop(~ACTIVIDAD_OCUPADA_ULTIMA_SEMANA, design = design.full)
+
+
+svytotal(~ACTIVIDAD_OCUPADA_ULTIMA_SEMANA, design.full)
+svytotal(~ACTIVIDAD_OCUPADA_ULTIMA_SEMANA, design.adasyn)
+
+t1 <- svytable(~SEXO + ACTIVIDAD_OCUPADA_ULTIMA_SEMANA, design = design.full)
+addmargins(t1)
+
+p1 = round(prop.table(t1,1)*100,2) ; p1
+p1 = as.data.frame(p1) ; p1
+
+ggplot(p1, aes(x=SEXO, y = Freq, fill=ACTIVIDAD_OCUPADA_ULTIMA_SEMANA)) + 
+  geom_bar(stat="identity") + ylab("% of countries") +
+  scale_fill_brewer(palette = 3, type = "qual")  +
+  theme(legend.position = "bottom center")
+
+
+t1 <- svytable(~SEXO + ACTIVIDAD_OCUPADA_ULTIMA_SEMANA, design = design.adasyn)
+addmargins(t1)
+
+p1 = round(prop.table(t1,1)*100,2) ; p1
+p1 = as.data.frame(p1) ; p1
+
+ggplot(p1, aes(x=SEXO, y = Freq, fill=ACTIVIDAD_OCUPADA_ULTIMA_SEMANA)) + 
+  geom_bar(stat="identity") + ylab("% of countries") +
+  scale_fill_brewer(palette = 3, type = "qual")  +
+  theme(legend.position = "bottom center")
