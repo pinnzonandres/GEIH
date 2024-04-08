@@ -242,8 +242,8 @@ Calcule los siguientes elementos:
 
 Con esto en cuenta, cada nivel $'l'$ de cada variable variable nominal $N_{X_i}$ del conjunto $U$ será codificado de la siguiente forma:
 
-1.   $e=$ el número de instancias en el conjunto que tienen el valor $'l'$.
-2.   $e'= e\times ir$
+1.  $e=$ el número de instancias en el conjunto que tienen el valor $'l'$.
+2.  $e'= e\times ir$
 3.  $o=$ número de instancias en la clase minoritaria que tienen el valor $'l'$.
 4.  $\chi= (o-e')/e'$
 5.  En el caso que $c>0$ entonces $l= \chi\times m$, en caso que $c=0$, entonces $l = \chi$.
@@ -284,142 +284,6 @@ $$
 t_j = G \times \hat{w_j},
 $$ se define como el número de muestras sintéticas que deben ser generadas de cada instancia a través de SMOTE con los $k$ vecinos calculados por la métrica SMOTE-ENC.
 
-### Código realizado en R
+### Código utilizado en R
 
-A continuación se dispone del código utilizado para el desarrollo de este documento, a través del
-
-```{r Librerias, echo=FALSE}
-
-# Carga de librerias
-library(survey)
-library(dplyr)
-library(MatchIt)
-library(caret)
-
-# Carga del Script con las funciones de balanceo
-source("C:\\Users\\andre\\OneDrive\\Escritorio\\Proyecto de Grado\\notebooks\\R\\Balanceo.R")
-
-```
-
-```{r}
-# Lectura de Datos y Ajuste de Parámetros Base
-data <- read.csv(
-  "C:/Users/andre/OneDrive/Escritorio/Proyecto de Grado/result/db_feature_selection/FS_Enero.csv"
-)
-
-# Definición de valores base
-seed <- 3
-set.seed(seed)
-size <- 0.8
-target <- "ACTIVIDAD_OCUPADA_ULTIMA_SEMANA"
-minority.value <- 0
-k <- 5
-
-# Variables numéricas
-vars.numeric <- c("EDAD")
-data[vars.numeric] <- scale(data[vars.numeric])
-
-## Train Test split
-train_index <- sample(
-  nrow(data),
-  size = size * nrow(data),
-  replace = FALSE
-  )
-
-train <- data[train_index, ]
-test <- data[-train_index, ]
-
-rownames(train) <- NULL
-rownames(test) <- NULL
-
-## Ajuste del conjunto de entrenamiento para la generación de las muestras sintéticas
-train.nowt <- subset(train, select = -FACTOR_EXPANSION)
-
-train.nowt$ACTIVIDAD_OCUPADA_ULTIMA_SEMANA <- as.factor(
-  train.nowt$ACTIVIDAD_OCUPADA_ULTIMA_SEMANA
-  )
-```
-
-```{r}
-# SMOTE.ENC
-synt.smote <- SMOTE_ENC(
-  df = train.nowt,
-  target = target,
-  minority.value = minority.value,
-  vars.numeric = vars.numeric,
-  k = k,
-  parallel = TRUE,
-  seed = seed
-)
-# Ajuste a valores de tipo numérico
-synt.smote <- synt.smote %>%
-  mutate(across(all_of(vars.numeric), as.numeric))
-```
-
-```{r}
-# ADASYN.ENC
-synt.adasyn <- ADASYN.ENC(
-  df = train.nowt,
-  target = target,
-  minority.value = minority.value,
-  vars.numeric = vars.numeric,
-  k = k,
-  parallel = TRUE,
-  seed = seed
-  )
-
-
-# Ajuste a valores de tipo numérico
-synt.adasyn <- synt.adasyn %>%
-  mutate(across(all_of(vars.numeric), as.numeric))
-
-```
-
-```{r}
-# WSMOTE.ENC
-factor.expansion <- train$FACTOR_EXPANSION
-synt.wsmote <- WSMOTE.ENC(
-  df = train.nowt,
-  factor_expansion = factor.expansion,
-  target = target,
-  minority.value = minority.value,
-  vars.numeric = vars.numeric,
-  k = k,
-  parallel = TRUE,
-  seed = seed
-)
-
-# Ajuste a valores de tipo numérico
-synt.wsmote <- synt.wsmote %>%
-  mutate(across(all_of(vars.numeric), as.numeric))
-```
-
-```{r}
-#Función con método de Matching
-match_rows = function(original, sintetico){
-  # Ajuste de Pesos para los datos sintéticos
-  sintetico$FACTOR_EXPANSION <- 1
-  
-  # Definición de Indicador de pertenecer a la muestra no probabilística
-  sintetico$Pertenece <- 1
-  original$Pertenece <- 0
-  
-  resample <- rbind(original, sintetico)
-  
-  # Algoritmo Match
-  match.it <- matchit(
-    Pertenece~.-FACTOR_EXPANSION,
-    data = resample,
-    method = "nearest",
-    ratio = 1
-    )
-  
-  df.match <- match.data(match.it)[1:ncol(resample)]
-  
-  return(df.match)
-}
-```
-
-```{r}
-
-```
+ repositorio [<https://github.com/pinnzonandres/GEIH/tree/master>](<https://github.com/pinnzonandres/GEIH/tree/master>).
