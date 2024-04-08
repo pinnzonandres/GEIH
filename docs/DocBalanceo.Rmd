@@ -286,7 +286,7 @@ $$ se define como el número de muestras sintéticas que deben ser generadas de 
 
 ### Código realizado en R
 
-A continuación se dispone del código utilizado para el desarrollo de este documento, para
+A continuación se dispone del código utilizado para el desarrollo de este documento, a través del
 
 ```{r Librerias, echo=FALSE}
 
